@@ -11,10 +11,12 @@ GameObject:
   - component: {fileID: 4933324379989343011}
   - component: {fileID: 1408923758888041315}
   - component: {fileID: 6171473164343006033}
-  - component: {fileID: 6517508387862021462}
-  - component: {fileID: 697844383696812154}
   - component: {fileID: 5384941631427019862}
+  - component: {fileID: -4319736476124247464}
+  - component: {fileID: -726597534066021931}
+  - component: {fileID: 2576388954931709395}
   - component: {fileID: 3974824312447383231}
+  - component: {fileID: -2876858264866763385}
   - component: {fileID: -122882547429744123}
   m_Layer: 0
   m_Name: Player
@@ -97,59 +99,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &6517508387862021462
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7190555597157935617}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0d9a27ccc796b8247af7c09db943b7a1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  speed: 5
-  jumpHeight: 1.5
-  gravity: -9.81
-  mouseSensitivity: 25
-  playerCamera: {fileID: 1101176961721976343}
-  enableHeadBobbing: 1
-  bobFrequency: 10
-  bobVerticalAmplitude: 0.05
-  bobHorizontalAmplitude: 0.05
-  grabRange: 5
-  holdDistance: 5
-  grabLayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
---- !u!54 &697844383696812154
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7190555597157935617}
-  serializedVersion: 5
-  m_Mass: 1
-  m_LinearDamping: 0
-  m_AngularDamping: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
 --- !u!143 &5384941631427019862
 CharacterController:
   m_ObjectHideFlags: 0
@@ -175,6 +124,59 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-4319736476124247464
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7190555597157935617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d9a27ccc796b8247af7c09db943b7a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
+  speed: 5
+  runSpeedMultiplier: 1.5
+  mouseSensitivity: 25
+  gravity: -9.81
+  jumpForce: 1.5
+  maxStamina: 4
+  staminaRegenRate: 1
+  staminaDrainRate: 1
+  playerCamera: {fileID: 0}
+--- !u!114 &-726597534066021931
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7190555597157935617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8de1b7097114c3e4099399cbef0f9d9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectCarry
+  pickUpRange: 3
+  carryKey: 101
+  carryForce: 100
+  smoothSpeed: 10
+  holdPoint: {fileID: 0}
+--- !u!114 &2576388954931709395
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7190555597157935617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 835b2fc58c582ab4f811f7a54e5b9e0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhysicsImpulseMouse
+  impulseForce: 5
+  activationKey: 102
+  player: {fileID: 0}
 --- !u!114 &3974824312447383231
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -200,6 +202,34 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &-2876858264866763385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7190555597157935617}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2eeedee10adaf604787df98c001c10a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WallClimbing
+  detectionDistance: 1.2
+  sphereRadius: 0.4
+  forwardOffset: 0.3
+  wallLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  climbKey: 32
+  climbSpeed: 5
+  slideSpeed: 2
+  climbUpHeight: 1.8
+  climbUpDuration: 0.6
+  useStamina: 1
+  staminaDrainRateClimbing: 1.2
+  minStaminaToClimb: 0.5
+  showGizmos: 1
+  DebugMode: 0
 --- !u!114 &-122882547429744123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -213,7 +243,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.Multiplayer.Center.NetcodeForGameObjectsExample::Unity.Multiplayer.Center.NetcodeForGameObjectsExample.ClientNetworkTransform
   ShowTopMostFoldoutHeaderGroup: 1
-  NetworkTransformExpanded: 0
+  NetworkTransformExpanded: 1
   AutoOwnerAuthorityTickOffset: 1
   PositionInterpolationType: 0
   RotationInterpolationType: 0

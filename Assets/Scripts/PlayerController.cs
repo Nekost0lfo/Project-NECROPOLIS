@@ -3,44 +3,38 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    [Header("Movement")]
-    public float speed = 5f;
-    public float jumpHeight = 1.5f;
-    public float gravity = -9.81f;
-
-    [Header("Look")]
+    [Header("Основные настройки")]
+    public float speed = 5f; //2
+    public float runSpeedMultiplier = 1.5f; //
     public float mouseSensitivity = 25f;
+
+    [Header("Гравитация и прыжок")]
+    public float gravity = -9.81f; //-35
+    public float jumpForce = 1.5f; //0.5
+
+    [Header("Выносливость (Sprint)")]
+    public float maxStamina = 4f;        // Максимальное время бега (секунды)
+    public float staminaRegenRate = 1f;  // Скорость восстановления (в секундах)
+    public float staminaDrainRate = 1f;  // Скорость траты (в секундах)
+
+    [Header("Компоненты")]
     public Transform playerCamera;
-
-    [Header("Head Bobbing")]
-    public bool enableHeadBobbing = true;
-    public float bobFrequency = 10f;
-    public float bobVerticalAmplitude = 0.05f;
-    public float bobHorizontalAmplitude = 0.03f;
-
-    [Header("Interaction")]
-    public float grabRange = 5f;               // дистанция обнаружения объекта
-    public float holdDistance = 2f;            // расстояние от камеры до удерживаемого объекта
-    public LayerMask grabLayerMask = -1;       // слои, с которыми взаимодействуем
-
     private CharacterController controller;
+
+    private bool gravityEnabled = true;
+
+    // Приватные переменные
     private Vector2 moveInput;
     private Vector2 lookInput;
     private float xRotation = 0f;
-    private float verticalVelocity;
+    private float yVelocity;
 
-    private Vector3 cameraInitialPosition;
-    private float bobTimer;
-    private bool isMoving;
+    // Sprint/Stamina
+    private bool isRunning = false;
+    private float currentStamina;        // Текущая выносливость
+    private bool canRun = true;          // Может ли бежать
 
     private InputSystem_Actions inputActions;
-
-    // ---------- Поля для захвата объектов ----------
-    private InputAction interactAction;        // отдельный InputAction для E
-    private bool isHolding = false;
-    private GameObject heldObject;
-    private Rigidbody heldRigidbody;
-    private Transform holdPoint;               // точка, в которой удерживается предмет
 
     void Awake()
     {
@@ -54,10 +48,8 @@ public class PlayerController : MonoBehaviour
 
         inputActions.Player.Jump.performed += ctx => Jump();
 
-        // Создаём отдельный InputAction для клавиши E
-        interactAction = new InputAction("Interact", InputActionType.Button, "<Keyboard>/e");
-        interactAction.performed += _ => StartHolding();
-        interactAction.canceled += _ => StopHolding();
+        inputActions.Player.Sprint.performed += ctx => isRunning = true;
+        inputActions.Player.Sprint.canceled += ctx => isRunning = false;
     }
 
     void Start()
@@ -65,64 +57,102 @@ public class PlayerController : MonoBehaviour
         controller = GetComponent<CharacterController>();
         Cursor.lockState = CursorLockMode.Locked;
 
-        if (playerCamera != null)
-        {
-            cameraInitialPosition = playerCamera.localPosition;
-
-            // Создаём пустую точку удержания, привязанную к камере
-            GameObject point = new GameObject("HoldPoint");
-            point.transform.SetParent(playerCamera);
-            point.transform.localPosition = new Vector3(0f, 0f, holdDistance);
-            point.transform.localRotation = Quaternion.identity;
-            holdPoint = point.transform;
-        }
+        // Инициализируем выносливость
+        currentStamina = maxStamina;
     }
 
     void OnEnable()
     {
         inputActions.Enable();
-        interactAction.Enable();   // включаем E вместе с остальными
     }
 
     void OnDisable()
     {
         inputActions.Disable();
-        interactAction.Disable();
     }
 
     void Update()
     {
-        HandleLook();
+        HandleStamina();      // ← НОВОЕ: управление выносливостью
         HandleMovement();
+        HandleLook();
         ApplyGravity();
-        if (enableHeadBobbing) HandleHeadBobbing();
-        HandleHeldObject();       // перемещаем удерживаемый объект (если есть)
+    }
+
+    void HandleStamina()
+    {
+        // Если пытаемся бежать и можем бежать
+        if (isRunning && canRun && currentStamina > 0)
+        {
+            // Тратим выносливость
+            currentStamina -= staminaDrainRate * Time.deltaTime;
+
+            if (currentStamina <= 0)
+            {
+                currentStamina = 0;
+                canRun = false;
+                isRunning = false;  // Принудительно останавливаем бег
+                Debug.Log("Выносливость кончилась! Бег временно недоступен.");
+            }
+        }
+        else
+        {
+            // Восстанавливаем выносливость, если не бежим
+            if (currentStamina < maxStamina)
+            {
+                currentStamina += staminaRegenRate * Time.deltaTime;
+
+                if (currentStamina >= maxStamina)
+                {
+                    currentStamina = maxStamina;
+                    canRun = true;   // Снова можно бежать
+                }
+            }
+        }
     }
 
     void HandleMovement()
     {
+        // Вычисляем текущую скорость (с учётом бега и выносливости)
+        float currentSpeed = speed;
+        if (isRunning && canRun && currentStamina > 0)
+        {
+            currentSpeed = speed * runSpeedMultiplier;
+        }
+
+        // Горизонтальное движение (WASD)
         Vector3 horizontalMove = transform.right * moveInput.x + transform.forward * moveInput.y;
-        horizontalMove *= speed;
+        controller.Move(horizontalMove * currentSpeed * Time.deltaTime);
 
-        isMoving = moveInput.magnitude > 0.1f && controller.isGrounded;
-
-        Vector3 move = horizontalMove + Vector3.up * verticalVelocity;
-        controller.Move(move * Time.deltaTime);
+        // Вертикальное движение (гравитация/прыжок)
+        Vector3 verticalMove = Vector3.up * yVelocity;
+        controller.Move(verticalMove * Time.deltaTime);
     }
 
     void ApplyGravity()
     {
-        if (controller.isGrounded && verticalVelocity < 0f)
-            verticalVelocity = -2f;
+        if (!gravityEnabled) return;
 
-        verticalVelocity += gravity * Time.deltaTime;
+        if (controller.isGrounded && yVelocity < 0)
+        {
+            yVelocity = -2f;
+        }
+
+        if (yVelocity > 0)
+        {
+            yVelocity += gravity * 2f * Time.deltaTime;
+        }
+        else
+        {
+            yVelocity += gravity * 2f * Time.deltaTime;
+        }
     }
 
     void Jump()
     {
         if (controller.isGrounded)
         {
-            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            yVelocity = Mathf.Sqrt(jumpForce * -2f * gravity);
         }
     }
 
@@ -138,88 +168,46 @@ public class PlayerController : MonoBehaviour
         transform.Rotate(Vector3.up * mouseX);
     }
 
-    void HandleHeadBobbing()
+    void OnGUI()
     {
-        if (isMoving)
-        {
-            bobTimer += Time.deltaTime * bobFrequency;
+        // Проверка, чтобы избежать ошибок
+        if (maxStamina <= 0) return;
 
-            float verticalOffset = Mathf.Sin(bobTimer) * bobVerticalAmplitude;
-            float horizontalOffset = Mathf.Cos(bobTimer) * bobHorizontalAmplitude;
+        float staminaPercent = currentStamina / maxStamina;
 
-            Vector3 newPos = cameraInitialPosition;
-            newPos.y += verticalOffset;
-            newPos.x += horizontalOffset;
+        // Временный текст для отладки (покажет, работает ли OnGUI)
+        GUI.Label(new Rect(10, 60, 200, 20), $"Stamina: {currentStamina:F1} / {maxStamina}");
 
-            playerCamera.localPosition = newPos;
-        }
-        else
-        {
-            bobTimer = 0f;
-            playerCamera.localPosition = Vector3.Lerp(
-                playerCamera.localPosition,
-                cameraInitialPosition,
-                Time.deltaTime * bobFrequency
-            );
-        }
+        // Устанавливаем яркий голубой цвет
+        GUI.backgroundColor = new Color(0.2f, 0.7f, 1f, 1f);
+        GUI.color = Color.white;
+
+        // Рисуем рамку с текстом
+        GUI.Box(new Rect(10, 10, 200, 20), "STAMINA");
+
+        // Рисуем полоску выносливости
+        GUI.Box(new Rect(10, 32, 200 * staminaPercent, 12), "");
+
+        // Сбрасываем цвет обратно
+        GUI.backgroundColor = Color.white;
     }
 
-    // ---------- Логика захвата ----------
-
-    /// <summary> Вызывается при нажатии E (performed) </summary>
-    void StartHolding()
+    public void SetGravityEnabled(bool enabled)
     {
-        // Если уже что-то держим — не пытаемся схватить новое
-        if (isHolding) return;
+        gravityEnabled = enabled;
+    }
 
-        Ray ray = new Ray(playerCamera.position, playerCamera.forward);
-        if (Physics.Raycast(ray, out RaycastHit hit, grabRange, grabLayerMask))
+    public float GetCurrentStamina()
+    {
+        return currentStamina;
+    }
+
+    public void DrainStamina(float amount)
+    {
+        currentStamina -= amount;
+        if (currentStamina < 0)
         {
-            Rigidbody rb = hit.collider.GetComponent<Rigidbody>();
-            // Игнорируем кинематические тела (их двигать через физику не получится)
-            if (rb != null && !rb.isKinematic)
-            {
-                isHolding = true;
-                heldObject = hit.collider.gameObject;
-                heldRigidbody = rb;
-
-                // Настраиваем физику для плавного удержания
-                heldRigidbody.useGravity = false;
-                heldRigidbody.freezeRotation = true;
-                heldRigidbody.linearDamping = 15f;   // гасим инерцию
-            }
+            currentStamina = 0;
         }
-    }
-
-    /// <summary> Вызывается при отпускании E (canceled) </summary>
-    void StopHolding()
-    {
-        if (!isHolding) return;
-
-        // Возвращаем стандартные настройки физики
-        heldRigidbody.useGravity = true;
-        heldRigidbody.freezeRotation = false;
-        heldRigidbody.linearDamping = 0f;
-
-        heldObject = null;
-        heldRigidbody = null;
-        isHolding = false;
-    }
-
-    /// <summary> Каждый кадр перемещаем удерживаемый объект к точке holdPoint </summary>
-    void HandleHeldObject()
-    {
-        if (isHolding && heldRigidbody != null && holdPoint != null)
-        {
-            // MovePosition обеспечивает физическое перемещение с учётом коллизий
-            heldRigidbody.MovePosition(holdPoint.position);
-        }
-    }
-
-    void OnDestroy()
-    {
-        // Освобождаем объект, если он ещё удерживается при уничтожении игрока
-        if (isHolding)
-            StopHolding();
     }
 }
