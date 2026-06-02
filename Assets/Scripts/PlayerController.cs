@@ -1,79 +1,116 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Netcode;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Основные настройки")]
-    public float speed = 5f; //2
-    public float runSpeedMultiplier = 1.5f; //
+    public float speed = 5f;
+    public float runSpeedMultiplier = 1.5f;
     public float mouseSensitivity = 25f;
 
     [Header("Гравитация и прыжок")]
-    public float gravity = -9.81f; //-35
-    public float jumpForce = 1.5f; //0.5
+    public float gravity = -9.81f;
+    public float jumpForce = 1.5f;
 
     [Header("Выносливость (Sprint)")]
-    public float maxStamina = 4f;        // Максимальное время бега (секунды)
-    public float staminaRegenRate = 1f;  // Скорость восстановления (в секундах)
-    public float staminaDrainRate = 1f;  // Скорость траты (в секундах)
+    public float maxStamina = 4f;
+    public float staminaRegenRate = 1f;
+    public float staminaDrainRate = 1f;
 
     [Header("Компоненты")]
-    public Transform playerCamera;
+    public Transform playerCamera;   // назначьте в инспекторе дочернюю камеру
     private CharacterController controller;
 
     private bool gravityEnabled = true;
-
-    // Приватные переменные
     private Vector2 moveInput;
     private Vector2 lookInput;
     private float xRotation = 0f;
     private float yVelocity;
 
-    // Sprint/Stamina
     private bool isRunning = false;
-    private float currentStamina;        // Текущая выносливость
-    private bool canRun = true;          // Может ли бежать
+    private float currentStamina;
+    private bool canRun = true;
 
     private InputSystem_Actions inputActions;
 
     void Awake()
     {
+        // Создаём экземпляр, но не подписываемся пока
         inputActions = new InputSystem_Actions();
-
-        inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
-
-        inputActions.Player.Look.performed += ctx => lookInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Look.canceled += ctx => lookInput = Vector2.zero;
-
-        inputActions.Player.Jump.performed += ctx => Jump();
-
-        inputActions.Player.Sprint.performed += ctx => isRunning = true;
-        inputActions.Player.Sprint.canceled += ctx => isRunning = false;
+        controller = GetComponent<CharacterController>();
     }
 
-    void Start()
+    public override void OnNetworkSpawn()
     {
-        controller = GetComponent<CharacterController>();
-        Cursor.lockState = CursorLockMode.Locked;
+        base.OnNetworkSpawn();
 
-        // Инициализируем выносливость
-        currentStamina = maxStamina;
+        if (IsOwner)
+        {
+            // ------ НАСТРОЙКА КАМЕРЫ ------
+            if (playerCamera != null)
+            {
+                // Делаем камеру дочерней (если ещё нет) – чтобы она следовала за игроком
+                playerCamera.SetParent(transform);
+                playerCamera.localPosition = new Vector3(0, 0.6f, 0); // подберите высоту
+                playerCamera.localRotation = Quaternion.identity;
+
+                var cam = playerCamera.GetComponent<Camera>();
+                if (cam != null) cam.enabled = true;
+
+                var listener = playerCamera.GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = true;
+            }
+
+            // ------ БЛОКИРОВКА КУРСОРА ------
+            Cursor.lockState = CursorLockMode.Locked;
+
+            // ------ ПОДПИСКА НА ВВОД ------
+            inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
+            inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
+            inputActions.Player.Look.performed += ctx => lookInput = ctx.ReadValue<Vector2>();
+            inputActions.Player.Look.canceled += ctx => lookInput = Vector2.zero;
+            inputActions.Player.Jump.performed += ctx => Jump();
+            inputActions.Player.Sprint.performed += ctx => isRunning = true;
+            inputActions.Player.Sprint.canceled += ctx => isRunning = false;
+
+            // ВКЛЮЧАЕМ Input Actions
+            inputActions.Enable();
+
+            // Инициализация выносливости
+            currentStamina = maxStamina;
+        }
+        else
+        {
+            // Отключаем камеру и весь скрипт для чужих игроков
+            if (playerCamera != null)
+            {
+                var cam = playerCamera.GetComponent<Camera>();
+                if (cam != null) cam.enabled = false;
+
+                var listener = playerCamera.GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = false;
+            }
+            enabled = false;  // скрипт не работает на чужих объектах
+        }
     }
 
     void OnEnable()
     {
-        inputActions.Enable();
+        // Можно оставить пустым, активация ввода теперь в OnNetworkSpawn
     }
 
     void OnDisable()
     {
-        inputActions.Disable();
+        if (IsOwner)
+            inputActions?.Disable();
     }
 
     void Update()
     {
-        HandleStamina();      // ← НОВОЕ: управление выносливостью
+        if (!IsOwner) return;   // дополнительная страховка
+
+        HandleStamina();
         HandleMovement();
         HandleLook();
         ApplyGravity();
@@ -170,25 +207,16 @@ public class PlayerController : MonoBehaviour
 
     void OnGUI()
     {
-        // Проверка, чтобы избежать ошибок
-        if (maxStamina <= 0) return;
+        if (!IsOwner) return;
 
+        if (maxStamina <= 0) return;
         float staminaPercent = currentStamina / maxStamina;
 
-        // Временный текст для отладки (покажет, работает ли OnGUI)
         GUI.Label(new Rect(10, 60, 200, 20), $"Stamina: {currentStamina:F1} / {maxStamina}");
-
-        // Устанавливаем яркий голубой цвет
         GUI.backgroundColor = new Color(0.2f, 0.7f, 1f, 1f);
         GUI.color = Color.white;
-
-        // Рисуем рамку с текстом
         GUI.Box(new Rect(10, 10, 200, 20), "STAMINA");
-
-        // Рисуем полоску выносливости
         GUI.Box(new Rect(10, 32, 200 * staminaPercent, 12), "");
-
-        // Сбрасываем цвет обратно
         GUI.backgroundColor = Color.white;
     }
 
@@ -197,17 +225,10 @@ public class PlayerController : MonoBehaviour
         gravityEnabled = enabled;
     }
 
-    public float GetCurrentStamina()
-    {
-        return currentStamina;
-    }
-
+    public float GetCurrentStamina() => currentStamina;
     public void DrainStamina(float amount)
     {
         currentStamina -= amount;
-        if (currentStamina < 0)
-        {
-            currentStamina = 0;
-        }
+        if (currentStamina < 0) currentStamina = 0;
     }
 }
